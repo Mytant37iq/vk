@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VK Музыка — Совместная очередь (Интерактивный прототип)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --vk-bg: #0A0A0A;
+      --vk-surface: #19191A;
+      --vk-surface-elevated: #232325;
+      --vk-border: rgba(255, 255, 255, 0.08);
+      --vk-blue: #0077FF;
+      --vk-blue-hover: #1A85FF;
+      --vk-text-primary: #E1E3E6;
+      --vk-text-secondary: #828282;
+      --vk-text-muted: #939393;
+      --vk-green: #4BB34B;
+      --vk-red: #FF3347;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #050507;
+      color: var(--vk-text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Desktop Studio Background */
+    .studio-bg {
+      background:
+        radial-gradient(circle at 20% 20%, rgba(0, 119, 255, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.10) 0%, transparent 45%),
+        #050507;
+    }
+
+    /* Realistic iPhone 15 Pro Frame */
+    .iphone-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: center center;
+      transition: transform 0.2s ease;
+    }
+
+    .iphone-frame {
+      width: 390px;
+      height: 844px;
+      border-radius: 54px;
+      padding: 11px;
+      background: linear-gradient(145deg, #434347 0%, #1d1d20 35%, #2d2d31 70%, #151517 100%);
+      box-shadow:
+        0 30px 90px rgba(0, 0, 0, 0.85),
+        0 0 0 1px rgba(255, 255, 255, 0.14),
+        inset 0 0 2px 1px rgba(255, 255, 255, 0.22);
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    /* Side hardware buttons (subtle) */
+    .iphone-frame::before {
+      content: "";
+      position: absolute;
+      left: -3px;
+      top: 155px;
+      width: 3px;
+      height: 54px;
+      background: #2f2f34;
+      border-radius: 2px 0 0 2px;
+      box-shadow: 0 70px 0 #2f2f34, 0 -46px 0 -0.5px #2f2f34;
+    }
+    .iphone-frame::after {
+      content: "";
+      position: absolute;
+      right: -3px;
+      top: 205px;
+      width: 3px;
+      height: 84px;
+      background: #2f2f34;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .iphone-screen {
+      width: 100%;
+      height: 100%;
+      background-color: var(--vk-bg);
+      border-radius: 44px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Mobile fullscreen fallback */
+    @media (max-width: 480px) {
+      .desktop-bar { display: none !important; }
+      .iphone-wrapper { transform: none !important; width: 100%; height: 100%; }
+      .iphone-frame {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        padding: 0;
+        background: var(--vk-bg);
+        box-shadow: none;
+      }
+      .iphone-frame::before, .iphone-frame::after { display: none; }
+      .iphone-screen { border-radius: 0; }
+      .dynamic-island { display: none !important; }
+    }
+
+    /* Hide scrollbars cleanly */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Custom Range Scrubber */
+    input[type="range"].vk-scrubber {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"].vk-scrubber::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"].vk-scrubber:hover::-webkit-slider-thumb,
+    input[type="range"].vk-scrubber:active::-webkit-slider-thumb {
+      transform: scale(1.25);
+    }
+
+    /* Ambient Glow Transition */
+    .ambient-glow {
+      transition: background 0.8s ease;
+    }
+
+    /* Album Art Play/Pause Scale */
+    .album-art-box {
+      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease;
+    }
+    .album-art-box.paused {
+      transform: scale(0.92);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
+    .album-art-box.playing {
+      transform: scale(1);
+      box-shadow: 0 22px 50px rgba(0, 0, 0, 0.65);
+    }
+
+    /* Animated Equalizer */
+    @keyframes eqBounce {
+      0%, 100% { height: 4px; }
+      50% { height: 14px; }
+    }
+    .eq-bar {
+      width: 3px;
+      border-radius: 2px;
+      background: var(--vk-blue);
+      animation: eqBounce 0.75s ease-in-out infinite;
+    }
+    .eq-bar:nth-child(2) { animation-delay: 0.2s; animation-duration: 0.62s; }
+    .eq-bar:nth-child(3) { animation-delay: 0.38s; animation-duration: 0.85s; }
+    .eq-paused .eq-bar {
+      animation: none;
+      height: 4px !important;
+      opacity: 0.5;
+    }
+
+    /* Floating Live Emoji Reaction */
+    @keyframes floatUpEmoji {
+      0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.6) rotate(0deg);
+      }
+      15% {
+        opacity: 1;
+        transform: translateY(-20px) scale(1.15) rotate(var(--rot));
+      }
+      80% {
+        opacity: 0.9;
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-290px) scale(0.95) rotate(calc(var(--rot) * -1.4));
+      }
+    }
+    .floating-emoji {
+      position: absolute;
+      bottom: 120px;
+      font-size: 28px;
+      pointer-events: none;
+      z-index: 60;
+      animation: floatUpEmoji 1.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5));
+    }
+
+    /* Heart Pop Micro-animation */
+    @keyframes heartPop {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.32); }
+      75% { transform: scale(0.9); }
+      100% { transform: scale(1); }
+    }
+    .heart-pop {
+      animation: heartPop 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Bottom Sheet Transitions */
+    .sheet-backdrop {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.28s ease;
+    }
+    .sheet-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .sheet-panel {
+      transform: translateY(100%);
+      transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .sheet-backdrop.open .sheet-panel {
+      transform: translateY(0);
+    }
+
+    /* Screen Slide Transition */
+    .screen-queue {
+      transform: translateX(100%);
+      transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .screen-queue.active {
+      transform: translateX(0);
+    }
+
+    /* VKUI Toggle Switch */
+    .vk-switch {
+      width: 44px;
+      height: 26px;
+      border-radius: 999px;
+      background: #363738;
+      position: relative;
+      transition: background 0.2s ease;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .vk-switch.on {
+      background: var(--vk-blue);
+    }
+    .vk-switch-knob {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+      transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .vk-switch.on .vk-switch-knob {
+      transform: translateX(18px);
+    }
+
+    /* VK Toast */
+    .vk-toast {
+      transform: translate(-50%, -20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .vk-toast.show {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+
+    /* Live Pulse Dot */
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.65; }
+    }
+    .live-dot {
+      animation: pulseDot 1.6s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="studio-bg flex flex-col items-center justify-center w-full h-full select-none">
+
+  <!-- Desktop Studio Top Bar -->
+  <div class="desktop-bar hidden md:flex items-center justify-between w-full max-w-[960px] px-6 py-3 fixed top-3 left-1/2 -translate-x-1/2 z-50 rounded-2xl bg-[#141416]/80 backdrop-blur-xl border border-white/10 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-[#0077FF] flex items-center justify-center shadow-lg shadow-[#0077FF]/30">
+        <!-- VK Music Note Emblem -->
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M9 18V6.2c0-.6.4-1.1 1-1.2l9-1.8c.7-.1 1.3.4 1.3 1.1V15" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="6.5" cy="18" r="2.7" fill="#fff"/>
+          <circle cx="17.8" cy="15.5" r="2.7" fill="#fff"/>
+        </svg>
+      </div>
+      <div>
+        <div class="text-[13px] font-semibold text-[#E1E3E6] tracking-tight">VK Музыка • Интерактивный прототип</div>
+        <div class="text-[11px] text-[#828282]">Фича: «Совместная очередь» (Слушать вместе)</div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2.5">
+      <button id="simulateFriendBtn" class="px-3.5 py-2 rounded-xl bg-[#232325] hover:bg-[#2E2E32] active:scale-95 text-[12px] font-medium text-[#E1E3E6] border border-white/10 transition flex items-center gap-2 cursor-pointer">
+        <span class="w-2 h-2 rounded-full bg-[#4BB34B] live-dot"></span>
+        Симулировать действие друга
+      </button>
+    </div>
+  </div>
+
+  <!-- Centered iPhone 15 Pro Presentation Frame -->
+  <div id="iphoneWrapper" class="iphone-wrapper mt-0 md:mt-10">
+    <div class="iphone-frame">
+      <div class="iphone-screen">
+
+        <!-- iOS Status Bar & Dynamic Island -->
+        <div class="relative z-40 flex items-center justify-between px-7 pt-3.5 pb-2 text-[13px] font-semibold text-white shrink-0">
+          <span class="tracking-tight w-12">17:44</span>
+          <div class="dynamic-island w-[108px] h-[30px] bg-black rounded-full flex items-center justify-end pr-2.5 shadow-inner border border-white/[0.04]">
+            <div class="w-2.5 h-2.5 rounded-full bg-[#121629] ring-1 ring-white/10"></div>
+          </div>
+          <div class="flex items-center gap-1.5 w-14 justify-end">
+            <!-- Signal -->
+            <svg width="15" height="11" viewBox="0 0 16 12" fill="white">
+              <rect x="0" y="8" width="2.6" height="4" rx="0.8"/>
+              <rect x="4" y="5.5" width="2.6" height="6.5" rx="0.8"/>
+              <rect x="8" y="3" width="2.6" height="9" rx="0.8"/>
+              <rect x="12" y="0.5" width="2.6" height="11.5" rx="0.8"/>
+            </svg>
+            <!-- Wi-Fi -->
+            <svg width="14" height="11" viewBox="0 0 16 12" fill="none">
+              <path d="M1.5 4.2C5.1 0.9 10.9 0.9 14.5 4.2" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M4.2 7.1C6.3 5.2 9.7 5.2 11.8 7.1" stroke="white" stroke-width="1.6" stroke-linecap="round"/>
+              <circle cx="8" cy="10.2" r="1.4" fill="white"/>
+            </svg>
+            <!-- Battery -->
+            <div class="w-[22px] h-[11px] rounded-[3.5px] border border-white/50 p-[1.5px] flex items-center relative">
+              <div class="w-full h-full bg-white rounded-[1.5px]"></div>
+              <div class="w-[1.5px] h-[4px] bg-white/50 rounded-r-sm absolute -right-[2.5px]"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Floating Toast Container (Inside Phone) -->
+        <div id="vkToast" class="vk-toast absolute top-[58px] left-1/2 z-[80] w-[90%] max-w-[330px] bg-[#232325]/95 backdrop-blur-xl border border-white/12 rounded-2xl px-3.5 py-2.5 shadow-2xl flex items-center gap-2.5">
+          <div id="vkToastIcon" class="w-6 h-6 rounded-full bg-[#4BB34B]/20 text-[#4BB34B] flex items-center justify-center shrink-0 text-[13px]">✓</div>
+          <div id="vkToastText" class="text-[13px] font-medium text-[#E1E3E6] leading-snug">Готово</div>
+        </div>
+
+        <!-- Floating Emoji Reactions Layer -->
+        <div id="emojiLayer" class="absolute inset-0 pointer-events-none overflow-hidden z-[60]"></div>
+
+        <!-- ======================================================= -->
+        <!-- SCREEN 1: NOW PLAYING (ЭКРАН ПЛЕЕРА)                    -->
+        <!-- ======================================================= -->
+        <div id="playerScreen" class="relative flex-1 flex flex-col justify-between px-6 pt-1 pb-7 overflow-hidden">
+          <!-- Adaptive Ambient Radial Glow -->
+          <div id="ambientGlow" class="ambient-glow absolute inset-0 pointer-events-none z-0"></div>
+
+          <!-- Top Header -->
+          <div class="relative z-10 flex items-center justify-between pt-1">
+            <button id="playerCollapseBtn" class="w-9 h-9 rounded-full flex items-center justify-center text-[#E1E3E6]/80 hover:bg-white/10 transition cursor-pointer" aria-label="Свернуть">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+
+            <!-- Context Title or Live Collaborative Pill -->
+            <div id="playerTopContext" class="flex flex-col items-center cursor-pointer">
+              <span class="text-[10px] font-semibold tracking-[0.08em] uppercase text-[#939393]">ИЗ ПЛЕЙЛИСТА</span>
+              <span class="text-[13px] font-semibold text-[#E1E3E6] leading-tight">Вечерний вайб</span>
+            </div>
+
+            <button id="playerMoreBtn" class="w-9 h-9 rounded-full flex items-center justify-center text-[#E1E3E6]/80 hover:bg-white/10 transition cursor-pointer" aria-label="Ещё">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="5" cy="12" r="2"/>
+                <circle cx="12" cy="12" r="2"/>
+                <circle cx="19" cy="12" r="2"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Album Artwork -->
+          <div class="relative z-10 flex items-center justify-center my-3">
+            <div id="albumArtBox" class="album-art-box playing w-[292px] h-[292px] rounded-[20px] overflow-hidden border border-white/10 relative">
+              <div id="playerCoverArt" class="w-full h-full"></div>
+              <!-- Subtle live badge on cover if added by friend -->
+              <div id="playerAddedByTag" class="hidden absolute bottom-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center gap-1.5 text-[11px] font-medium text-white/90">
+                <span id="playerAddedByAvatar" class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold"></span>
+                <span id="playerAddedByName">Добавила Алина</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Track Info + Controls Block -->
+          <div class="relative z-10 flex flex-col gap-4">
+            <!-- Title, Artist, Like & Add -->
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <h1 id="playerTrackTitle" class="text-[21px] font-bold text-[#E1E3E6] truncate tracking-tight leading-snug">Minor</h1>
+                <p id="playerTrackArtist" class="text-[15px] text-[#939393] truncate mt-0.5">Miyagi &amp; Эндшпиль</p>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button id="likeBtn" class="w-10 h-10 rounded-full flex items-center justify-center text-[#939393] hover:bg-white/10 transition cursor-pointer" aria-label="Нравится">
+                  <svg id="likeIcon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
+                </button>
+                <button id="playerAddBtn" class="w-10 h-10 rounded-full flex items-center justify-center text-[#939393] hover:text-white hover:bg-white/10 transition cursor-pointer" aria-label="Добавить в мою музыку">
+                  <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Interactive Scrubber -->
+            <div class="flex flex-col gap-1.5">
+              <input id="progressScrubber" type="range" min="0" max="175" value="48" class="vk-scrubber" />
+              <div class="flex justify-between text-[11px] font-medium text-[#828282] tabular-nums">
+                <span id="currentTimeLabel">0:48</span>
+                <span id="durationTimeLabel">2:55</span>
+              </div>
+            </div>
+
+            <!-- Playback Controls -->
+            <div class="flex items-center justify-between px-1 my-0.5">
+              <button id="shuffleBtn" class="w-10 h-10 rounded-full flex items-center justify-center text-[#828282] hover:text-white transition cursor-pointer" aria-label="Перемешать">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/>
+                  <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+                  <line x1="4" y1="4" x2="9" y2="9"/>
+                </svg>
+              </button>
+
+              <button id="prevBtn" class="w-12 h-12 rounded-full flex items-center justify-center text-[#E1E3E6] hover:bg-white/10 active:scale-90 transition cursor-pointer" aria-label="Предыдущий">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+                </svg>
+              </button>
+
+              <button id="playPauseBtn" class="w-[66px] h-[66px] rounded-full bg-white text-[#0A0A0A] flex items-center justify-center shadow-xl hover:scale-[1.03] active:scale-95 transition cursor-pointer" aria-label="Пауза">
+                <svg id="playPauseIcon" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4.2" height="16" rx="1.4"/>
+                  <rect x="13.8" y="4" width="4.2" height="16" rx="1.4"/>
+                </svg>
+              </button>
+
+              <button id="nextBtn" class="w-12 h-12 rounded-full flex items-center justify-center text-[#E1E3E6] hover:bg-white/10 active:scale-90 transition cursor-pointer" aria-label="Следующий">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/>
+                </svg>
+              </button>
+
+              <button id="repeatBtn" class="w-10 h-10 rounded-full flex items-center justify-center text-[#828282] hover:text-white transition cursor-pointer" aria-label="Повтор">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                  <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Bottom Action Row with NEW FEATURE Entry Point -->
+            <div class="flex items-center justify-between pt-2">
+              <button id="lyricsBtn" class="w-10 h-10 rounded-xl flex items-center justify-center text-[#939393] hover:text-white hover:bg-white/10 transition cursor-pointer" aria-label="Текст песни">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 6h16M4 12h12M4 18h8"/>
+                </svg>
+              </button>
+
+              <!-- NEW FEATURE PILL BUTTON: "Слушать вместе" -->
+              <button id="listenTogetherBtn" class="px-4 py-2.5 rounded-full bg-[#0077FF]/18 hover:bg-[#0077FF]/28 active:scale-95 border border-[#0077FF]/40 text-[#E1E3E6] flex items-center gap-2 transition shadow-lg shadow-[#0077FF]/10 cursor-pointer">
+                <div id="listenTogetherLeft" class="flex items-center">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4DA3FF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </div>
+                <span id="listenTogetherLabel" class="text-[13px] font-semibold tracking-tight text-white">Слушать вместе</span>
+              </button>
+
+              <button id="openQueueBtn" class="w-10 h-10 rounded-xl flex items-center justify-center text-[#939393] hover:text-white hover:bg-white/10 transition relative cursor-pointer" aria-label="Очередь">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+                <span id="queueCountBadge" class="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#0077FF] text-[10px] font-bold text-white flex items-center justify-center">4</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======================================================= -->
+        <!-- SCREEN 2: COLLABORATIVE QUEUE (СОВМЕСТНАЯ ОЧЕРЕДЬ)      -->
+        <!-- ======================================================= -->
+        <div id="queueScreen" class="screen-queue absolute inset-0 top-[46px] bg-[#0A0A0A] z-30 flex flex-col">
+          <!-- Queue Header -->
+          <div class="px-4 pt-2 pb-3 border-b border-white/[0.07] bg-[#0A0A0A]/95 backdrop-blur-md shrink-0">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <button id="queueBackBtn" class="w-9 h-9 rounded-full flex items-center justify-center text-[#E1E3E6] hover:bg-white/10 transition cursor-pointer shrink-0" aria-label="Назад к плееру">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 18l-6-6 6-6"/>
+                  </svg>
+                </button>
+                <div class="min-w-0">
+                  <h2 class="text-[17px] font-bold text-[#E1E3E6] leading-tight truncate">Совместная очередь</h2>
+                  <div class="flex items-center gap-1.5 mt-0.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-[#4BB34B] live-dot"></span>
+                    <span id="roomParticipantsText" class="text-[12px] text-[#939393]">3 в комнате</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 shrink-0">
+                <div id="queueHeaderAvatars" class="flex -space-x-2"></div>
+                <button id="queueInviteBtn" class="px-3 py-1.5 rounded-full bg-[#0077FF]/18 hover:bg-[#0077FF]/28 text-[#4DA3FF] text-[12px] font-semibold transition cursor-pointer">
+                  + Позвать
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scrollable Content -->
+          <div class="flex-1 overflow-y-auto no-scrollbar px-4 pt-3.5 pb-24 space-y-4">
+            <!-- Now Playing Compact Card -->
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#828282] mb-2 px-1">Сейчас играет</div>
+              <div class="p-3 rounded-2xl bg-[#19191A] border border-white/[0.08] flex items-center gap-3">
+                <div id="queueNowCover" class="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-white/10"></div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <span id="queueNowTitle" class="text-[14px] font-semibold text-[#E1E3E6] truncate">Minor</span>
+                    <div id="queueEq" class="flex items-end gap-[2px] h-3.5 shrink-0">
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                      <span class="eq-bar"></span>
+                    </div>
+                  </div>
+                  <div id="queueNowArtist" class="text-[12px] text-[#939393] truncate">Miyagi &amp; Эндшпиль</div>
+                  <div id="queueNowAddedBy" class="text-[11px] text-[#4DA3FF] mt-0.5 font-medium">Добавил: Вы</div>
+                </div>
+                <button id="queuePlayPauseBtn" class="w-9 h-9 rounded-full bg-[#232325] hover:bg-[#2F2F33] text-white flex items-center justify-center transition cursor-pointer shrink-0">
+                  <svg id="queuePlayPauseIcon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4.2" height="16" rx="1.2"/>
+                    <rect x="13.8" y="4" width="4.2" height="16" rx="1.2"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Live Reactions Strip -->
+            <div>
+              <div class="flex items-center justify-between mb-2 px-1">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#828282]">Реакции на трек</span>
+                <span class="text-[11px] text-[#828282]">Видны всем в комнате</span>
+              </div>
+              <div id="reactionsStrip" class="grid grid-cols-5 gap-2"></div>
+            </div>
+
+            <!-- Up Next Queue List -->
+            <div>
+              <div class="flex items-center justify-between mb-2 px-1">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#828282]">Далее в очереди</span>
+                <span id="votingModeHint" class="text-[11px] text-[#4BB34B] font-medium">Сортировка по голосам</span>
+              </div>
+              <div id="queueTrackList" class="space-y-2"></div>
+            </div>
+          </div>
+
+          <!-- Sticky Bottom CTA -->
+          <div class="absolute bottom-0 inset-x-0 px-4 pt-3 pb-7 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/95 to-transparent">
+            <button id="openSearchSheetBtn" class="w-full py-3.5 rounded-[14px] bg-[#0077FF] hover:bg-[#1A85FF] active:scale-[0.98] text-white text-[15px] font-semibold shadow-lg shadow-[#0077FF]/25 transition flex items-center justify-center gap-2 cursor-pointer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Добавить трек в очередь
+            </button>
+          </div>
+        </div>
+
+        <!-- ======================================================= -->
+        <!-- BOTTOM SHEET 1: «СЛУШАТЬ ВМЕСТЕ» (INVITE & SETUP)       -->
+        <!-- ======================================================= -->
+        <div id="inviteSheetBackdrop" class="sheet-backdrop absolute inset-0 bg-black/65 backdrop-blur-[2px] z-50 flex items-end">
+          <div id="inviteSheetPanel" class="sheet-panel w-full bg-[#19191A] rounded-t-[24px] border-t border-white/10 px-5 pt-2.5 pb-8 max-h-[84%] flex flex-col">
+            <!-- Drag Handle -->
+            <div class="w-9 h-1 rounded-full bg-white/20 mx-auto mb-4 shrink-0"></div>
+
+            <div class="flex items-start justify-between mb-1 shrink-0">
+              <div>
+                <h3 class="text-[20px] font-bold text-[#E1E3E6] tracking-tight">Слушать вместе</h3>
+                <p class="text-[13px] text-[#939393] mt-0.5 leading-snug">Соберите общую очередь треков с друзьями в реальном времени</p>
+              </div>
+              <button id="closeInviteSheetBtn" class="w-8 h-8 rounded-full bg-[#232325] text-[#939393] hover:text-white flex items-center justify-center transition cursor-pointer shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="overflow-y-auto no-scrollbar space-y-4 mt-3 pb-2">
+              <!-- Invite Friends Horizontal List -->
+              <div>
+                <div class="text-[12px] font-semibold text-[#828282] mb-2.5">Пригласить друзей из VK</div>
+                <div id="friendsHorizontalList" class="flex gap-3 overflow-x-auto no-scrollbar pb-1"></div>
+              </div>
+
+              <!-- Invite Link & QR Card -->
+              <div class="p-3.5 rounded-2xl bg-[#232325] border border-white/[0.06]">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="text-[11px] text-[#828282]">Ссылка на комнату</div>
+                    <div class="text-[14px] font-semibold text-[#E1E3E6] truncate">vk.cc/music-jam</div>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button id="toggleQrBtn" class="px-2.5 py-1.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.12] text-[12px] font-semibold text-[#E1E3E6] transition cursor-pointer flex items-center gap-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 20h2"/>
+                      </svg>
+                      QR
+                    </button>
+                    <button id="copyLinkBtn" class="px-3 py-1.5 rounded-xl bg-[#0077FF]/20 hover:bg-[#0077FF]/30 text-[12px] font-semibold text-[#4DA3FF] transition cursor-pointer">
+                      Копировать
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Collapsible SVG QR Code -->
+                <div id="qrBox" class="hidden mt-3 pt-3 border-t border-white/[0.07] flex flex-col items-center">
+                  <div class="p-3 bg-white rounded-2xl shadow-inner">
+                    <svg width="116" height="116" viewBox="0 0 29 29" fill="#0A0A0A">
+                      <path d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM22 0h7v7h-7zM23 1v5h5V1zM24 2h3v3h-3zM0 22h7v7H0zM1 23v5h5v-5zM2 24h3v3H2z"/>
+                      <path d="M9 1h2v2H9zM13 1h3v2h-3zM18 1h2v4h-2zM9 5h4v2H9zM15 5h2v2h-2zM1 9h3v2H1zM6 9h2v4H6zM10 9h3v3h-3zM15 9h5v2h-5zM22 9h2v3h-2zM26 9h3v2h-3zM2 13h2v3H2zM8 14h3v2H8zM13 13h4v4h-4zM19 13h2v4h-2zM23 14h5v2h-5zM1 18h5v2H1zM9 18h2v3H9zM13 19h3v2h-3zM18 19h4v2h-4zM24 18h2v3h-2zM27 19h2v3h-2zM9 23h4v2H9zM15 23h2v5h-2zM19 23h3v2h-3zM24 23h5v2h-5zM11 26h2v3h-2zM19 27h4v2h-4zM26 26h3v3h-3z"/>
+                    </svg>
+                  </div>
+                  <span class="text-[11px] text-[#828282] mt-2">Отсканируйте камерой телефона, чтобы войти</span>
+                </div>
+              </div>
+
+              <!-- VKUI Settings Toggles -->
+              <div class="rounded-2xl bg-[#232325] border border-white/[0.06] divide-y divide-white/[0.06]">
+                <div class="px-3.5 py-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-[14px] font-medium text-[#E1E3E6]">Друзья могут добавлять треки</div>
+                    <div class="text-[11px] text-[#828282]">Любой участник пополняет очередь</div>
+                  </div>
+                  <div id="toggleFriendsAdd" class="vk-switch on" role="switch" aria-checked="true">
+                    <div class="vk-switch-knob"></div>
+                  </div>
+                </div>
+                <div class="px-3.5 py-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-[14px] font-medium text-[#E1E3E6]">Голосование за следующий трек</div>
+                    <div class="text-[11px] text-[#828282]">Треки с лайками поднимаются выше</div>
+                  </div>
+                  <div id="toggleVoting" class="vk-switch on" role="switch" aria-checked="true">
+                    <div class="vk-switch-knob"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Primary CTA -->
+            <button id="openQueueFromSheetBtn" class="mt-3 w-full py-3.5 rounded-[14px] bg-[#0077FF] hover:bg-[#1A85FF] active:scale-[0.98] text-white text-[15px] font-semibold shadow-lg shadow-[#0077FF]/25 transition cursor-pointer shrink-0">
+              Открыть общую очередь
+            </button>
+          </div>
+        </div>
+
+        <!-- ======================================================= -->
+        <!-- BOTTOM SHEET 2: «ДОБАВИТЬ ТРЕК» (SEARCH & CATALOG)      -->
+        <!-- ======================================================= -->
+        <div id="searchSheetBackdrop" class="sheet-backdrop absolute inset-0 bg-black/65 backdrop-blur-[2px] z-50 flex items-end">
+          <div class="sheet-panel w-full bg-[#19191A] rounded-t-[24px] border-t border-white/10 px-4 pt-2.5 pb-7 h-[82%] flex flex-col">
+            <div class="w-9 h-1 rounded-full bg-white/20 mx-auto mb-3.5 shrink-0"></div>
+
+            <div class="flex items-center justify-between mb-3 px-1 shrink-0">
+              <h3 class="text-[18px] font-bold text-[#E1E3E6]">Добавить трек</h3>
+              <button id="closeSearchSheetBtn" class="w-8 h-8 rounded-full bg-[#232325] text-[#939393] hover:text-white flex items-center justify-center transition cursor-pointer">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Search Input -->
+            <div class="relative mb-3 shrink-0">
+              <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#828282]" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+              <input id="catalogSearchInput" type="text" placeholder="Поиск треков и исполнителей" class="w-full pl-10 pr-9 py-2.5 rounded-xl bg-[#232325] border border-white/[0.06] text-[14px] text-[#E1E3E6] placeholder-[#828282] focus:outline-none focus:border-[#0077FF]/60 transition" />
+              <button id="clearSearchBtn" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/10 text-[#939393] flex items-center justify-center text-[12px] cursor-pointer">✕</button>
+            </div>
+
+            <!-- Catalog Results -->
+            <div id="catalogList" class="flex-1 overflow-y-auto no-scrollbar space-y-1.5 pr-0.5"></div>
+          </div>
+        </div>
+
+        <!-- iOS Home Indicator -->
+        <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-[134px] h-[5px] rounded-full bg-white/30 z-[70] pointer-events-none"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /*************************************************************************
+     * 1. RICH SVG ALBUM ARTWORK & AVATAR GENERATORS (Zero Broken URLs)
+     *************************************************************************/
+    function createAlbumArtSVG(palette, patternType) {
+      const [c1, c2, c3] = palette;
+      let shapes = "";
+      if (patternType === 0) {
+        shapes = `
+          <circle cx="72" cy="30" r="46" fill="${c3}" opacity="0.45"/>
+          <circle cx="26" cy="78" r="34" fill="#ffffff" opacity="0.10"/>
+          <path d="M12 84 Q50 38 92 66" stroke="#ffffff" stroke-width="2.2" fill="none" opacity="0.35"/>
+        `;
+      } else if (patternType === 1) {
+        shapes = `
+          <polygon points="15,85 52,18 88,85" fill="${c3}" opacity="0.42"/>
+          <circle cx="52" cy="54" r="18" fill="#0A0A0A" opacity="0.35"/>
+          <circle cx="52" cy="54" r="7" fill="#ffffff" opacity="0.7"/>
+        `;
+      } else if (patternType === 2) {
+        shapes = `
+          <rect x="16" y="16" width="68" height="68" rx="18" stroke="#ffffff" stroke-width="2" fill="none" opacity="0.28" transform="rotate(14 50 50)"/>
+          <circle cx="50" cy="50" r="22" fill="${c3}" opacity="0.55"/>
+          <circle cx="50" cy="50" r="6" fill="#0A0A0A" opacity="0.75"/>
+        `;
+      } else {
+        shapes = `
+          <path d="M0 64 Q30 32 56 54 T100 42 L100 100 L0 100 Z" fill="${c3}" opacity="0.45"/>
+          <circle cx="28" cy="28" r="14" fill="#ffffff" opacity="0.25"/>
+          <rect x="64" y="18" width="18" height="18" rx="4" fill="#ffffff" opacity="0.16" transform="rotate(25 73 27)"/>
+        `;
+      }
+
+      return `
+        <svg viewBox="0 0 100 100" class="w-full h-full block" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <linearGradient id="g_${c1.replace('#','')}_${patternType}" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="${c1}"/>
+              <stop offset="100%" stop-color="${c2}"/>
+            </linearGradient>
+          </defs>
+          <rect width="100" height="100" fill="url(#g_${c1.replace('#','')}_${patternType})"/>
+          ${shapes}
+        </svg>
+      `;
+    }
+
+    /*************************************************************************
+     * 2. APPLICATION DATA & STATE
+     *************************************************************************/
+    const FRIENDS = [
+      { id: "f1", name: "Алина", initials: "АЛ", color: "linear-gradient(135deg,#FF4B7D,#FF8E53)", status: "joined" },
+      { id: "f2", name: "Максим", initials: "МК", color: "linear-gradient(135deg,#0077FF,#00C6FF)", status: "joined" },
+      { id: "f3", name: "Даня", initials: "ДН", color: "linear-gradient(135deg,#7C3AED,#EC4899)", status: "idle" },
+      { id: "f4", name: "Катя", initials: "КТ", color: "linear-gradient(135deg,#10B981,#3B82F6)", status: "idle" },
+      { id: "f5", name: "Артём", initials: "АР", color: "linear-gradient(135deg,#F59E0B,#EF4444)", status: "idle" }
+    ];
+
+    const YOU_USER = { id: "me", name: "Вы", initials: "ВЫ", color: "linear-gradient(135deg,#0077FF,#5B21B6)" };
+
+    const CATALOG = [
+      { id: "t1", title: "Minor", artist: "Miyagi & Эндшпиль", duration: 175, palette: ["#1B2A4A", "#0D1321", "#0077FF"], pattern: 0 },
+      { id: "t2", title: "ОГНЕЙ", artist: "SALUKI", duration: 204, palette: ["#5A189A", "#10002B", "#FF4D6D"], pattern: 1 },
+      { id: "t3", title: "Сансара", artist: "Баста", duration: 252, palette: ["#1D3557", "#0B132B", "#E63946"], pattern: 2 },
+      { id: "t4", title: "Отпускай", artist: "Три дня дождя", duration: 196, palette: ["#3A0CA3", "#120926", "#4CC9F0"], pattern: 3 },
+      { id: "t5", title: "Life", artist: "Zivert", duration: 188, palette: ["#C9184A", "#2B061E", "#FF9E00"], pattern: 0 },
+      { id: "t6", title: "Blinding Lights", artist: "The Weeknd", duration: 200, palette: ["#9D0208", "#180205", "#FFBA08"], pattern: 1 },
+      { id: "t7", title: "Instant Crush", artist: "Daft Punk, Julian Casablancas", duration: 337, palette: ["#003566", "#001220", "#00B4D8"], pattern: 2 },
+      { id: "t8", title: "Хлопья летят наверх", artist: "FEDUK", duration: 192, palette: ["#2D6A4F", "#081C15", "#74C69D"], pattern: 3 },
+      { id: "t9", title: "Зима в сердце", artist: "Моя Мишель", duration: 221, palette: ["#480CA8", "#16072E", "#F72585"], pattern: 0 },
+      { id: "t10", title: "ASPHALT 8", artist: "MACAN", duration: 169, palette: ["#2B2D42", "#0F1016", "#EF233C"], pattern: 1 }
+    ];
+
+    const state = {
+      isPlaying: true,
+      currentTime: 48,
+      likedTrackIds: new Set(["t1"]),
+      shuffle: false,
+      repeat: false,
+      sessionActive: true,
+      allowFriendsAdd: true,
+      votingEnabled: true,
+      currentTrack: { ...CATALOG[0], addedBy: YOU_USER },
+      queue: [
+        { ...CATALOG[1], addedBy: FRIENDS[0], votes: 3, userVoted: false },
+        { ...CATALOG[5], addedBy: FRIENDS[1], votes: 2, userVoted: true },
+        { ...CATALOG[3], addedBy: FRIENDS[0], votes: 1, userVoted: false },
+        { ...CATALOG[8], addedBy: YOU_USER, votes: 0, userVoted: false }
+      ],
+      reactions: [
+        { emoji: "🔥", count: 7 },
+        { emoji: "❤️", count: 5 },
+        { emoji: "⚡", count: 3 },
+        { emoji: "🎧", count: 4 },
+        { emoji: "💃", count: 2 }
+      ],
+      activeScreen: "player", // 'player' | 'queue'
+      qrVisible: false
+    };
+
+    /*************************************************************************
+     * 3. HELPER UTILITIES
+     *************************************************************************/
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${s < 10 ? "0" : ""}${s}`;
+    }
+
+    let toastTimer = null;
+    function showToast(message, icon = "✓", iconBg = "rgba(75,179,75,0.2)", iconColor = "#4BB34B") {
+      const toast = document.getElementById("vkToast");
+      const iconEl = document.getElementById("vkToastIcon");
+      const textEl = document.getElementById("vkToastText");
+
+      iconEl.textContent = icon;
+      iconEl.style.background = iconBg;
+      iconEl.style.color = iconColor;
+      textEl.textContent = message;
+
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+    }
+
+    function getActiveParticipants() {
+      return [YOU_USER, ...FRIENDS.filter(f => f.status === "joined")];
+    }
+
+    function spawnFloatingEmoji(emoji) {
+      const layer = document.getElementById("emojiLayer");
+      const el = document.createElement("div");
+      el.className = "floating-emoji";
+      el.textContent = emoji;
+      const leftPct = 18 + Math.random() * 64;
+      const rot = (Math.random() * 24 - 12).toFixed(1) + "deg";
+      el.style.left = `${leftPct}%`;
+      el.style.setProperty("--rot", rot);
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 1950);
+    }
+
+    function sortQueueIfNeeded() {
+      if (state.votingEnabled) {
+        state.queue.sort((a, b) => b.votes - a.votes);
+      }
+    }
+
+    /*************************************************************************
+     * 4. RENDER FUNCTIONS
+     *************************************************************************/
+    function renderPlayer() {
+      const t = state.currentTrack;
+
+      // Dynamic ambient glow based on track palette
+      const [c1, , c3] = t.palette;
+      document.getElementById("ambientGlow").style.background = `
+        radial-gradient(circle at 50% 24%, ${c3}44 0%, ${c1}55 34%, #0A0A0A 74%)
+      `;
+
+      // Cover art
+      document.getElementById("playerCoverArt").innerHTML = createAlbumArtSVG(t.palette, t.pattern);
+      const artBox = document.getElementById("albumArtBox");
+      artBox.classList.toggle("playing", state.isPlaying);
+      artBox.classList.toggle("paused", !state.isPlaying);
+
+      // Added by tag on cover
+      const addedTag = document.getElementById("playerAddedByTag");
+      if (state.sessionActive && t.addedBy) {
+        addedTag.classList.remove("hidden");
+        const av = document.getElementById("playerAddedByAvatar");
+        av.style.background = t.addedBy.color;
+        av.textContent = t.addedBy.initials[0];
+        document.getElementById("playerAddedByName").textContent =
+          t.addedBy.id === "me" ? "Добавили вы" : `Добавил(а): ${t.addedBy.name}`;
+      } else {
+        addedTag.classList.add("hidden");
+      }
+
+      // Top context pill
+      const topCtx = document.getElementById("playerTopContext");
+      const participants = getActiveParticipants();
+      if (state.sessionActive) {
+        topCtx.innerHTML = `
+          <div class="px-3 py-1 rounded-full bg-white/[0.08] border border-white/10 flex items-center gap-1.5 backdrop-blur-md">
+            <span class="w-1.5 h-1.5 rounded-full bg-[#4BB34B] live-dot"></span>
+            <span class="text-[12px] font-semibold text-[#E1E3E6]">Слушают вместе · ${participants.length}</span>
+          </div>
+        `;
+      } else {
+        topCtx.innerHTML = `
+          <span class="text-[10px] font-semibold tracking-[0.08em] uppercase text-[#939393]">ИЗ ПЛЕЙЛИСТА</span>
+          <span class="text-[13px] font-semibold text-[#E1E3E6] leading-tight">Вечерний вайб</span>
+        `;
+      }
+
+      // Title & Artist
+      document.getElementById("playerTrackTitle").textContent = t.title;
+      document.getElementById("playerTrackArtist").textContent = t.artist;
+
+      // Heart button
+      const isLiked = state.likedTrackIds.has(t.id);
+      const likeIcon = document.getElementById("likeIcon");
+      const likeBtn = document.getElementById("likeBtn");
+      likeBtn.style.color = isLiked ? "#FF3347" : "#939393";
+      likeIcon.setAttribute("fill", isLiked ? "#FF3347" : "none");
+
+      // Scrubber & Timers
+      const scrubber = document.getElementById("progressScrubber");
+      scrubber.max = t.duration;
+      scrubber.value = state.currentTime;
+      const pct = Math.min(100, (state.currentTime / t.duration) * 100);
+      scrubber.style.background = `linear-gradient(to right, #FFFFFF ${pct}%, rgba(255,255,255,0.16) ${pct}%)`;
+      document.getElementById("currentTimeLabel").textContent = formatTime(state.currentTime);
+      document.getElementById("durationTimeLabel").textContent = formatTime(t.duration);
+
+      // Play/Pause icons (Player + Queue)
+      const pauseSvg = `<rect x="6" y="4" width="4.2" height="16" rx="1.4"/><rect x="13.8" y="4" width="4.2" height="16" rx="1.4"/>`;
+      const playSvg = `<path d="M8 5.14v14.12c0 .84.91 1.36 1.63.93l11.2-7.06a1.1 1.1 0 0 0 0-1.86L9.63 4.21A1.09 1.09 0 0 0 8 5.14z"/>`;
+      document.getElementById("playPauseIcon").innerHTML = state.isPlaying ? pauseSvg : playSvg;
+      document.getElementById("queuePlayPauseIcon").innerHTML = state.isPlaying ? pauseSvg : playSvg;
+
+      // Shuffle / Repeat active tint
+      document.getElementById("shuffleBtn").style.color = state.shuffle ? "#0077FF" : "#828282";
+      document.getElementById("repeatBtn").style.color = state.repeat ? "#0077FF" : "#828282";
+
+      // "Слушать вместе" Pill Button State
+      const ltLeft = document.getElementById("listenTogetherLeft");
+      const ltLabel = document.getElementById("listenTogetherLabel");
+      if (state.sessionActive) {
+        const avStack = participants.slice(0, 3).map(p =>
+          `<span class="w-5 h-5 rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-[#121926]" style="background:${p.color}">${p.initials[0]}</span>`
+        ).join("");
+        ltLeft.innerHTML = `<div class="flex -space-x-1.5 mr-0.5">${avStack}</div><span class="w-2 h-2 rounded-full bg-[#4BB34B] ml-1.5 live-dot"></span>`;
+        ltLabel.textContent = "В комнате";
+      } else {
+        ltLeft.innerHTML = `
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4DA3FF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        `;
+        ltLabel.textContent = "Слушать вместе";
+      }
+
+      // Queue badge
+      const badge = document.getElementById("queueCountBadge");
+      badge.textContent = state.queue.length;
+      badge.classList.toggle("hidden", state.queue.length === 0);
+    }
+
+    function renderQueueScreen() {
+      const participants = getActiveParticipants();
+      document.getElementById("roomParticipantsText").textContent = `${participants.length} в комнате`;
+
+      // Overlapping avatars in header
+      document.getElementById("queueHeaderAvatars").innerHTML = participants.slice(0, 4).map(p => `
+        <div class="w-7 h-7 rounded-full text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-[#0A0A0A]" style="background:${p.color}" title="${p.name}">
+          ${p.initials}
+        </div>
+      `).join("");
+
+      // Now Playing Card
+      const t = state.currentTrack;
+      document.getElementById("queueNowCover").innerHTML = createAlbumArtSVG(t.palette, t.pattern);
+      document.getElementById("queueNowTitle").textContent = t.title;
+      document.getElementById("queueNowArtist").textContent = t.artist;
+      document.getElementById("queueNowAddedBy").textContent =
+        t.addedBy.id === "me" ? "Добавил: Вы" : `Добавил(а): ${t.addedBy.name}`;
+      document.getElementById("queueEq").classList.toggle("eq-paused", !state.isPlaying);
+
+      // Reactions Strip
+      document.getElementById("reactionsStrip").innerHTML = state.reactions.map((r, idx) => `
+        <button data-reaction-idx="${idx}" class="reaction-btn py-2 rounded-xl bg-[#19191A] hover:bg-[#232325] active:scale-90 border border-white/[0.07] flex items-center justify-center gap-1 transition cursor-pointer">
+          <span class="text-[16px]">${r.emoji}</span>
+          <span class="text-[12px] font-semibold text-[#E1E3E6] tabular-nums">${r.count}</span>
+        </button>
+      `).join("");
+
+      // Voting Hint
+      const hint = document.getElementById("votingModeHint");
+      hint.textContent = state.votingEnabled ? "Сортировка по голосам" : "По порядку добавления";
+      hint.style.color = state.votingEnabled ? "#4BB34B" : "#828282";
+
+      // Queue Track List
+      const listEl = document.getElementById("queueTrackList");
+      if (state.queue.length === 0) {
+        listEl.innerHTML = `
+          <div class="py-10 text-center rounded-2xl bg-[#19191A]/60 border border-dashed border-white/10">
+            <div class="text-[14px] font-semibold text-[#E1E3E6]">Очередь пока пуста</div>
+            <div class="text-[12px] text-[#828282] mt-1">Добавьте треки или позовите друзей</div>
+          </div>
+        `;
+      } else {
+        listEl.innerHTML = state.queue.map((item, idx) => `
+          <div class="queue-item group p-2.5 rounded-2xl bg-[#19191A] hover:bg-[#202022] border border-white/[0.06] flex items-center gap-3 transition">
+            <div data-play-idx="${idx}" class="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10 cursor-pointer relative">
+              ${createAlbumArtSVG(item.palette, item.pattern)}
+            </div>
+            <div data-play-idx="${idx}" class="min-w-0 flex-1 cursor-pointer">
+              <div class="text-[14px] font-semibold text-[#E1E3E6] truncate leading-tight">${item.title}</div>
+              <div class="text-[12px] text-[#939393] truncate mt-0.5">${item.artist} · ${formatTime(item.duration)}</div>
+              <div class="flex items-center gap-1.5 mt-1">
+                <span class="w-3.5 h-3.5 rounded-full text-[8px] font-bold text-white flex items-center justify-center" style="background:${item.addedBy.color}">${item.addedBy.initials[0]}</span>
+                <span class="text-[11px] text-[#828282]">${item.addedBy.name}</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${state.votingEnabled ? `
+                <button data-vote-idx="${idx}" class="vote-btn px-2.5 py-1.5 rounded-xl text-[12px] font-semibold flex items-center gap-1 transition active:scale-90 cursor-pointer ${
+                  item.userVoted
+                    ? "bg-[#0077FF]/22 text-[#4DA3FF] border border-[#0077FF]/40"
+                    : "bg-[#232325] text-[#939393] hover:text-white border border-white/[0.05]"
+                }">
+                  <span>🔥</span>
+                  <span class="tabular-nums">${item.votes}</span>
+                </button>
+              ` : ""}
+              <button data-remove-idx="${idx}" class="remove-btn w-7 h-7 rounded-lg text-[#828282] hover:text-[#FF3347] hover:bg-[#FF3347]/15 flex items-center justify-center transition cursor-pointer" title="Убрать из очереди">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        `).join("");
+      }
+
+      // Bind dynamic queue listeners
+      listEl.querySelectorAll("[data-play-idx]").forEach(el => {
+        el.addEventListener("click", () => {
+          const i = Number(el.dataset.playIdx);
+          playTrackFromQueue(i);
+        });
+      });
+
+      listEl.querySelectorAll("[data-vote-idx]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const i = Number(el.dataset.voteIdx);
+          const track = state.queue[i];
+          if (!track) return;
+          if (track.userVoted) {
+            track.userVoted = false;
+            track.votes = Math.max(0, track.votes - 1);
+          } else {
+            track.userVoted = true;
+            track.votes += 1;
+            spawnFloatingEmoji("🔥");
+          }
+          sortQueueIfNeeded();
+          renderQueueScreen();
+        });
+      });
+
+      listEl.querySelectorAll("[data-remove-idx]").forEach(el => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const i = Number(el.dataset.removeIdx);
+          const removed = state.queue.splice(i, 1)[0];
+          showToast(`«${removed.title}» убран из очереди`, "✕", "rgba(255,51,71,0.18)", "#FF3347");
+          renderQueueScreen();
+          renderPlayer();
+        });
+      });
+
+      document.querySelectorAll(".reaction-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const idx = Number(btn.dataset.reactionIdx);
+          state.reactions[idx].count += 1;
+          spawnFloatingEmoji(state.reactions[idx].emoji);
+          renderQueueScreen();
+        });
+      });
+    }
+
+    function renderFriendsList() {
+      const container = document.getElementById("friendsHorizontalList");
+      container.innerHTML = FRIENDS.map(f => {
+        let badge = "";
+        let subtext = "Позвать";
+        let subColor = "text-[#4DA3FF]";
+
+        if (f.status === "inviting") {
+          subtext = "Приглашён...";
+          subColor = "text-[#939393]";
+        } else if (f.status === "joined") {
+          badge = `<span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#4BB34B] border-2 border-[#19191A] flex items-center justify-center text-[9px] text-white font-bold">✓</span>`;
+          subtext = "В комнате";
+          subColor = "text-[#4BB34B]";
+        }
+
+        return `
+          <button data-friend-id="${f.id}" class="friend-invite-btn flex flex-col items-center w-[64px] shrink-0 group cursor-pointer">
+            <div class="relative w-12 h-12 rounded-full flex items-center justify-center text-[15px] font-bold text-white shadow-md group-active:scale-90 transition" style="background:${f.color}">
+              ${f.initials}
+              ${badge}
+            </div>
+            <span class="text-[12px] font-medium text-[#E1E3E6] mt-1.5 truncate w-full text-center">${f.name}</span>
+            <span class="text-[10px] font-medium ${subColor} leading-tight">${subtext}</span>
+          </button>
+        `;
+      }).join("");
+
+      container.querySelectorAll(".friend-invite-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const friend = FRIENDS.find(x => x.id === btn.dataset.friendId);
+          if (!friend || friend.status !== "idle") return;
+
+          friend.status = "inviting";
+          state.sessionActive = true;
+          renderFriendsList();
+
+          setTimeout(() => {
+            friend.status = "joined";
+            renderFriendsList();
+            renderPlayer();
+            renderQueueScreen();
+            const verb = (friend.name === "Алина" || friend.name === "Катя") ? "присоединилась" : "присоединился";
+            showToast(`${friend.name} ${verb} к очереди`, "🎧", "rgba(0,119,255,0.22)", "#4DA3FF");
+          }, 1200);
+        });
+      });
+    }
+
+    function renderCatalog(query = "") {
+      const q = query.trim().toLowerCase();
+      const filtered = CATALOG.filter(t =>
+        t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
+      );
+
+      const inQueueIds = new Set([state.currentTrack.id, ...state.queue.map(t => t.id)]);
+      const list = document.getElementById("catalogList");
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="py-10 text-center text-[13px] text-[#828282]">Ничего не найдено по запросу «${query}»</div>`;
+        return;
+      }
+
+      list.innerHTML = filtered.map(t => {
+        const added = inQueueIds.has(t.id);
+        return `
+          <div class="p-2 rounded-xl hover:bg-white/[0.04] flex items-center gap-3 transition">
+            <div class="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-white/10">
+              ${createAlbumArtSVG(t.palette, t.pattern)}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-[14px] font-semibold text-[#E1E3E6] truncate">${t.title}</div>
+              <div class="text-[12px] text-[#939393] truncate">${t.artist} · ${formatTime(t.duration)}</div>
+            </div>
+            <button data-add-track="${t.id}" class="add-catalog-btn w-9 h-9 rounded-full flex items-center justify-center transition active:scale-90 cursor-pointer ${
+              added
+                ? "bg-[#4BB34B]/20 text-[#4BB34B]"
+                : "bg-[#232325] hover:bg-[#0077FF] text-[#E1E3E6]"
+            }" aria-label="Добавить в очередь">
+              ${added
+                ? `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+                : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`
+              }
+            </button>
+          </div>
+        `;
+      }).join("");
+
+      list.querySelectorAll(".add-catalog-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const track = CATALOG.find(x => x.id === btn.dataset.addTrack);
+          if (!track) return;
+          if (inQueueIds.has(track.id)) {
+            showToast("Этот трек уже есть в очереди", "•", "rgba(255,255,255,0.12)", "#E1E3E6");
+            return;
+          }
+          state.queue.push({ ...track, addedBy: YOU_USER, votes: 1, userVoted: true });
+          sortQueueIfNeeded();
+          renderQueueScreen();
+          renderPlayer();
+          renderCatalog(document.getElementById("catalogSearchInput").value);
+          showToast("Трек добавлен в очередь");
+        });
+      });
+    }
+
+    /*************************************************************************
+     * 5. PLAYBACK & NAVIGATION ACTIONS
+     *************************************************************************/
+    function playTrackFromQueue(idx) {
+      const chosen = state.queue.splice(idx, 1)[0];
+      if (!chosen) return;
+      state.currentTrack = chosen;
+      state.currentTime = 0;
+      state.isPlaying = true;
+      renderPlayer();
+      renderQueueScreen();
+      showToast(`Сейчас играет: ${chosen.title}`, "▶", "rgba(0,119,255,0.22)", "#4DA3FF");
+    }
+
+    function playNextTrack() {
+      if (state.queue.length > 0) {
+        const nextIdx = state.shuffle ? Math.floor(Math.random() * state.queue.length) : 0;
+        playTrackFromQueue(nextIdx);
+      } else {
+        state.currentTime = 0;
+        renderPlayer();
+      }
+    }
+
+    function openQueueScreen() {
+      state.sessionActive = true;
+      state.activeScreen = "queue";
+      document.getElementById("queueScreen").classList.add("active");
+      renderPlayer();
+      renderQueueScreen();
+    }
+
+    function closeQueueScreen() {
+      state.activeScreen = "player";
+      document.getElementById("queueScreen").classList.remove("active");
+    }
+
+    function openInviteSheet() {
+      renderFriendsList();
+      document.getElementById("inviteSheetBackdrop").classList.add("open");
+    }
+
+    function closeInviteSheet() {
+      document.getElementById("inviteSheetBackdrop").classList.remove("open");
+    }
+
+    function openSearchSheet() {
+      document.getElementById("catalogSearchInput").value = "";
+      document.getElementById("clearSearchBtn").classList.add("hidden");
+      renderCatalog("");
+      document.getElementById("searchSheetBackdrop").classList.add("open");
+    }
+
+    function closeSearchSheet() {
+      document.getElementById("searchSheetBackdrop").classList.remove("open");
+    }
+
+    /*************************************************************************
+     * 6. SIMULATE FRIEND ACTIVITY (FOR REVIEWER DEMO)
+     *************************************************************************/
+    function simulateFriendAction() {
+      state.sessionActive = true;
+      const joinedFriends = FRIENDS.filter(f => f.status === "joined");
+      const actor = joinedFriends[Math.floor(Math.random() * joinedFriends.length)] || FRIENDS[0];
+
+      const inQueueIds = new Set([state.currentTrack.id, ...state.queue.map(t => t.id)]);
+      const availableTracks = CATALOG.filter(t => !inQueueIds.has(t.id));
+
+      const roll = Math.random();
+      if (availableTracks.length > 0 && roll < 0.55) {
+        // Friend adds a new track
+        const pick = availableTracks[Math.floor(Math.random() * availableTracks.length)];
+        state.queue.push({ ...pick, addedBy: actor, votes: 2, userVoted: false });
+        sortQueueIfNeeded();
+        renderQueueScreen();
+        renderPlayer();
+        const verb = (actor.name === "Алина" || actor.name === "Катя") ? "добавила" : "добавил";
+        showToast(`${actor.name} ${verb} «${pick.title}»`, "+", "rgba(0,119,255,0.22)", "#4DA3FF");
+      } else if (state.queue.length > 0 && roll < 0.8) {
+        // Friend upvotes a track
+        const idx = Math.floor(Math.random() * state.queue.length);
+        state.queue[idx].votes += 1;
+        const trackTitle = state.queue[idx].title;
+        sortQueueIfNeeded();
+        renderQueueScreen();
+        spawnFloatingEmoji("🔥");
+        const verb = (actor.name === "Алина" || actor.name === "Катя") ? "поддержала" : "поддержал";
+        showToast(`${actor.name} ${verb} «${trackTitle}» 🔥`, "🔥", "rgba(255,149,0,0.22)", "#FF9500");
+      } else {
+        // Friend sends live reaction burst
+        const rIdx = Math.floor(Math.random() * state.reactions.length);
+        state.reactions[rIdx].count += 1;
+        const em = state.reactions[rIdx].emoji;
+        spawnFloatingEmoji(em);
+        setTimeout(() => spawnFloatingEmoji(em), 220);
+        renderQueueScreen();
+        showToast(`${actor.name} отправил(а) реакцию ${em}`, em, "rgba(255,255,255,0.12)", "#FFFFFF");
+      }
+    }
+
+    /*************************************************************************
+     * 7. EVENT LISTENERS & RESPONSIVE FRAME SCALING
+     *************************************************************************/
+    function scalePhoneForViewport() {
+      const wrapper = document.getElementById("iphoneWrapper");
+      if (window.innerWidth <= 480) {
+        wrapper.style.transform = "none";
+        return;
+      }
+      const availableH = window.innerHeight - 96;
+      const availableW = window.innerWidth - 40;
+      const scaleH = availableH / 844;
+      const scaleW = availableW / 390;
+      const scale = Math.min(1, scaleH, scaleW);
+      wrapper.style.transform = `scale(${scale.toFixed(3)})`;
+    }
+
+    function bindEvents() {
+      // Playback controls
+      const togglePlay = () => {
+        state.isPlaying = !state.isPlaying;
+        renderPlayer();
+        renderQueueScreen();
+      };
+      document.getElementById("playPauseBtn").addEventListener("click", togglePlay);
+      document.getElementById("queuePlayPauseBtn").addEventListener("click", togglePlay);
+
+      document.getElementById("nextBtn").addEventListener("click", playNextTrack);
+      document.getElementById("prevBtn").addEventListener("click", () => {
+        state.currentTime = 0;
+        renderPlayer();
+      });
+
+      document.getElementById("shuffleBtn").addEventListener("click", () => {
+        state.shuffle = !state.shuffle;
+        renderPlayer();
+        showToast(state.shuffle ? "Перемешивание включено" : "Перемешивание выключено", "⇄", "rgba(0,119,255,0.2)", "#4DA3FF");
+      });
+
+      document.getElementById("repeatBtn").addEventListener("click", () => {
+        state.repeat = !state.repeat;
+        renderPlayer();
+        showToast(state.repeat ? "Повтор трека включён" : "Повтор выключен", "↻", "rgba(0,119,255,0.2)", "#4DA3FF");
+      });
+
+      // Like button
+      document.getElementById("likeBtn").addEventListener("click", () => {
+        const id = state.currentTrack.id;
+        const icon = document.getElementById("likeIcon");
+        if (state.likedTrackIds.has(id)) {
+          state.likedTrackIds.delete(id);
+        } else {
+          state.likedTrackIds.add(id);
+          icon.classList.remove("heart-pop");
+          void icon.offsetWidth;
+          icon.classList.add("heart-pop");
+        }
+        renderPlayer();
+      });
+
+      document.getElementById("playerAddBtn").addEventListener("click", () => {
+        showToast("Трек добавлен в «Мою музыку»");
+      });
+
+      document.getElementById("lyricsBtn").addEventListener("click", () => {
+        showToast("Текст песни доступен в полной версии", "♪", "rgba(255,255,255,0.12)", "#E1E3E6");
+      });
+
+      document.getElementById("playerMoreBtn").addEventListener("click", openInviteSheet);
+      document.getElementById("playerCollapseBtn").addEventListener("click", () => {
+        showToast("Мини-плеер свёрнут (демо-экран)", "↓", "rgba(255,255,255,0.12)", "#E1E3E6");
+      });
+
+      // Scrubber
+      document.getElementById("progressScrubber").addEventListener("input", (e) => {
+        state.currentTime = Number(e.target.value);
+        renderPlayer();
+      });
+
+      // Entry points to Feature
+      document.getElementById("listenTogetherBtn").addEventListener("click", openInviteSheet);
+      document.getElementById("playerTopContext").addEventListener("click", () => {
+        if (state.sessionActive) openQueueScreen();
+        else openInviteSheet();
+      });
+      document.getElementById("openQueueBtn").addEventListener("click", openQueueScreen);
+
+      // Queue navigation
+      document.getElementById("queueBackBtn").addEventListener("click", closeQueueScreen);
+      document.getElementById("queueInviteBtn").addEventListener("click", openInviteSheet);
+      document.getElementById("openSearchSheetBtn").addEventListener("click", openSearchSheet);
+
+      // Invite Sheet controls
+      document.getElementById("closeInviteSheetBtn").addEventListener("click", closeInviteSheet);
+      document.getElementById("inviteSheetBackdrop").addEventListener("click", (e) => {
+        if (e.target.id === "inviteSheetBackdrop") closeInviteSheet();
+      });
+
+      document.getElementById("openQueueFromSheetBtn").addEventListener("click", () => {
+        closeInviteSheet();
+        openQueueScreen();
+      });
+
+      document.getElementById("toggleQrBtn").addEventListener("click", () => {
+        state.qrVisible = !state.qrVisible;
+        document.getElementById("qrBox").classList.toggle("hidden", !state.qrVisible);
+      });
+
+      document.getElementById("copyLinkBtn").addEventListener("click", () => {
+        const tempInput = document.createElement("input");
+        tempInput.value = "https://vk.cc/music-jam";
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        try { document.execCommand("copy"); } catch (_) {}
+        document.body.removeChild(tempInput);
+        showToast("Ссылка скопирована");
+      });
+
+      // VKUI Switches
+      const swAdd = document.getElementById("toggleFriendsAdd");
+      swAdd.addEventListener("click", () => {
+        state.allowFriendsAdd = !state.allowFriendsAdd;
+        swAdd.classList.toggle("on", state.allowFriendsAdd);
+        swAdd.setAttribute("aria-checked", state.allowFriendsAdd);
+      });
+
+      const swVote = document.getElementById("toggleVoting");
+      swVote.addEventListener("click", () => {
+        state.votingEnabled = !state.votingEnabled;
+        swVote.classList.toggle("on", state.votingEnabled);
+        swVote.setAttribute("aria-checked", state.votingEnabled);
+        sortQueueIfNeeded();
+        renderQueueScreen();
+      });
+
+      // Search Sheet controls
+      document.getElementById("closeSearchSheetBtn").addEventListener("click", closeSearchSheet);
+      document.getElementById("searchSheetBackdrop").addEventListener("click", (e) => {
+        if (e.target.id === "searchSheetBackdrop") closeSearchSheet();
+      });
+
+      const searchInput = document.getElementById("catalogSearchInput");
+      const clearBtn = document.getElementById("clearSearchBtn");
+      searchInput.addEventListener("input", (e) => {
+        clearBtn.classList.toggle("hidden", e.target.value.length === 0);
+        renderCatalog(e.target.value);
+      });
+      clearBtn.addEventListener("click", () => {
+        searchInput.value = "";
+        clearBtn.classList.add("hidden");
+        renderCatalog("");
+        searchInput.focus();
+      });
+
+      // Desktop Reviewer Simulation Button
+      document.getElementById("simulateFriendBtn").addEventListener("click", simulateFriendAction);
+
+      // Resize scaling
+      window.addEventListener("resize", scalePhoneForViewport);
+    }
+
+    // Live Playback Timer
+    setInterval(() => {
+      if (!state.isPlaying) return;
+      state.currentTime += 1;
+      if (state.currentTime >= state.currentTrack.duration) {
+        if (state.repeat) {
+          state.currentTime = 0;
+        } else {
+          playNextTrack();
+          return;
+        }
+      }
+      renderPlayer();
+    }, 1000);
+
+    // Initialize App
+    window.onload = () => {
+      scalePhoneForViewport();
+      bindEvents();
+      renderPlayer();
+      renderQueueScreen();
+      renderFriendsList();
+    };
+  </script>
+</body>
+</html>
